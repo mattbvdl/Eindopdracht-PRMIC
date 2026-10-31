@@ -10,17 +10,16 @@
 ** ADC, Timers, PWM, Grafisch LCD
 */
 
-
-#define F_CPU 32000000UL                                // Xmega clock speed
+#define F_CPU 32000000UL                                // Systeemklok 32 MHz
 
 #define MINRES 3569                                     // ADC-waarde bij 22,9 graden
-#define MAXRES 2760                                     // ADC-waarde bij 40 graden
-#define MINTEMP 22.9f                                   // Gemeten temperatuur
-#define MAXTEMP 40.0f                                   // Gemeten temperatuur
+#define MAXRES 2760                                     // ADC-waarde bij 40,0 graden
+#define MINTEMP 22.9f                                   // Minimale kalibratietemperatuur
+#define MAXTEMP 40.0f                                   // Maximale kalibratietemperatuur
 
 #define FAN_ON_TEMP 30.0f                               // Ventilator AAN vanaf 30 graden
 #define FAN_OFF_TEMP 25.0f                              // Ventilator UIT bij 25 graden
-#define PWM_MAX 16000                                   // PWM 50%
+#define PWM_MAX 16000                                   // PWM-dutycycle 50%
 
 #include <stdio.h>
 #include <avr/io.h>
@@ -29,153 +28,110 @@
 #include "clock.h"
 #include "serialF0.h"
 #include "ucglib_xmega.h"
+#include "init.h"
 
-// Variabele voor de timerinterrupt
-volatile uint8_t TimerFlag = 0;             // Teller voor het aantal timer-overflows
 
 /*
- * Bron: Wim Dolman, De taal C en de Xmega,
- * Hoofdstuk 20, code 20.1, pagina 338.
+ * Bron: PRMIC, week 4, les 2, dia 11.
+ * TCE0 overflow-interrupt.
  */
-void init_adc(void)
+
+// Globale variabele voor de timerinterrupt
+volatile uint8_t TimerFlag = 0;                         // flag variabele voor ISR
+
+ISR(TCE0_OVF_vect)
 {
-    PORTB.DIRCLR = PIN1_bm;                             // Stel PB1 in als ingang
-    ADCB.CH0.MUXCTRL = ADC_CH_MUXPOS_PIN1_gc;           // Verbind PB1 met ADC-kanaal 0
-    ADCB.CH0.CTRL = ADC_CH_INPUTMODE_SINGLEENDED_gc;    // Stel kanaal 0 in op single-ended
-    ADCB.REFCTRL = ADC_REFSEL_INTVCC_gc;                // Gebruik VCC/1,6 als referentiespanning
-    ADCB.CTRLB = ADC_RESOLUTION_12BIT_gc;               // Stel de ADC in op 12-bit unsigned
-    ADCB.PRESCALER = ADC_PRESCALER_DIV256_gc;           // Stel de ADC-klok in op 32 MHz / 256 = 125 kHz
-    ADCB.CTRLA = ADC_ENABLE_bm;                         // Schakel ADCB in
+    TimerFlag = 1;                                      // timer flag voor gebruik in main
 }
 
-
 /*
- * Bron: Wim Dolman, De taal C en de Xmega,
- * Hoofdstuk 20, code 20.1, pagina 338.
- */
-uint16_t read_adc(void)
+* Bron: PRMIC, huiswerk week 6, opdracht 1.
+* Wim Dolman, De taal C en de Xmega,
+* hoofdstuk 20, code 20.1, p. 338.
+*/
+uint16_t ADC_read(void)
 {
     uint16_t res;                                       // Variabele voor het 12-bit ADC-resultaat
-
     ADCB.CH0.CTRL |= ADC_CH_START_bm;                   // Start de ADC-conversie op kanaal 0
     while (!(ADCB.CH0.INTFLAGS & ADC_CH_CHIF_bm));      // Wacht totdat de conversie voltooid is
-
     res = ADCB.CH0.RES;                                 // Lees het ADC-resultaat uit
-    ADCB.CH0.INTFLAGS |= ADC_CH_CHIF_bm;                // Wis de interruptvlag van de ADC
-
+    ADCB.CH0.INTFLAGS = ADC_CH_CHIF_bm;                 // Wis de interruptvlag van de ADC
     return res;                                         // Geef de gemeten ADC-waarde terug
-}
-
-
-// Initialiseer het grafische LCD
-void ucg_init(ucg_t *ucg)
-{
-    ucg_com_fnptr ucg_xmega_func = &ucg_com_xmega_cb;   // Selecteer de communicatiefunctie voor de Xmega
-    ucg_Init(ucg, ucg_dev_st7735_18x128x160,
-             ucg_ext_st7735_18, ucg_xmega_func);        // Initialiseer het ST7735-display
-}
-
-
-// Initialiseer timer TCE0
-void timer_init(void)
-{
-    TCE0.CTRLB = TC_WGMODE_NORMAL_gc;                   // Stel de timer in op normale telmodus
-    TCE0.PER = 63999;                                   // Genereer iedere 16 ms een timer-overflow
-    TCE0.INTCTRLA = TC_OVFINTLVL_LO_gc;                 // Schakel overflow-interrupt op laag niveau in
-    TCE0.CTRLA = TC_CLKSEL_DIV8_gc;                     // Gebruik de systeemklok met prescaler 8
-}
-
-/*
- * Bron: Wim Dolman, De taal C en de Xmega,
- * Hoofdstuk 22, code 22.3 en 22.4, pagina 392-393.
- * Aangepast voor PWM op D1 (PD1) bij 32 MHz.
- */
-void pwm_init(void)
-{
-    TCD0.CTRLB = TC0_CCBEN_bm | TC_WGMODE_SINGLESLOPE_gc; // Activeer PWM op PD1 in single-slope-modus
-    TCD0.PER = 31999;                                    // Stel de PWM-frequentie in op 1 kHz
-    TCD0.CCB = 0;                                    // Stel de PWM-dutycycle aanvankelijk in op 50%
-    TCD0.CTRLA = TC_CLKSEL_DIV1_gc;                      // Gebruik de systeemklok van 32 MHz zonder prescaler
 }
 
 
 int main(void)
 {
-    // Initialiseer de microcontroller
+    // Variabelen
+    ucg_t ucg;                                          // Grafisch LCD
+    char buffer[20];                                    // Buffer voor de LCD-tekst
+
+    uint16_t ADCresultaat;                              // Gemeten ADC-waarde
+    float TEMPresultaat;                                // Berekende temperatuur
+    uint8_t fan_on = 0;                                 // Ventilator staat aanvankelijk UIT
+
+    // Initialiseer functies (zie init.c)
     init_clock();
     init_stream(F_CPU);
+    ADC_init();                                         // ADCB voor PB1
+    timer_init();                                       // TCE0: overflow iedere 16 ms
+    pwm_init();                                         // TCD0: PWM van 1 kHz
+    ucg_init(&ucg);                                     // Initialiseer het ST7735-display
 
-    // Initialiseer de PWM-uitgang
-    PORTD.OUTCLR = PIN1_bm;                             // Zet D1 (PD1) laag
-    PORTD.DIRSET = PIN1_bm;                             // Stel D1 in als uitgang
+    // Grafische LCD setup
+    ucg_SetFontMode(&ucg, UCG_FONT_MODE_TRANSPARENT);
+    ucg_ClearScreen(&ucg);
+    ucg_SetFont(&ucg, ucg_font_8x13_mr);
+    ucg_SetColor(&ucg, 0, 255, 255, 0);
+    ucg_SetRotate180(&ucg);
 
-    timer_init();                                       // Initialiseer TCE0 voor de overflow-interrupt
-    pwm_init();                                         // Initialiseer TCD0 voor PWM
-
-    PMIC.CTRL |= PMIC_LOLVLEN_bm;                       // Schakel low-level interrupts in
-    sei();                                              // Schakel globale interrupts in
-
-
-    // Initialiseer het grafische LCD
-    ucg_t ucg;
-    ucg_init(&ucg);                                     // Initialiseer het display
-    ucg_SetFontMode(&ucg, UCG_FONT_MODE_TRANSPARENT);   // Stel een transparante tekstachtergrond in
-    ucg_ClearScreen(&ucg);                              // Wis het scherm
-    ucg_SetFont(&ucg, ucg_font_8x13_mr);                // Selecteer het lettertype
-    ucg_SetColor(&ucg, 0, 255, 255, 0);                 // Stel kleurindex 0 in op geel
-    ucg_SetRotate180(&ucg);                             // Draai de schermoriëntatie 180 graden
-
+    // Status headers 
     ucg_DrawString(&ucg, 0, 50, 0, "ADC :");
     ucg_DrawString(&ucg, 0, 75, 0, "TEMP:");
     ucg_DrawString(&ucg, 0, 100, 0, "FAN :");
 
-    // Initialiseer de ADC
-    uint16_t res;                                       // Variabele voor de gemeten ADC-waarde
-    init_adc();                                         // Initialiseer ADCB
+    // Toon de beginstatus van de ventilator
+    ucg_SetColor(&ucg, 0, 255, 0, 0);
+    ucg_DrawString(&ucg, 50, 100, 0, "OFF");
+
+    sei();                                              // Schakel globale interrupts in
 
     while (1)
     {
-        if (TimerFlag)                                      // Controleer of een nieuwe meting nodig is
+        if (TimerFlag)                                  // Controleer of een nieuwe meting nodig is
         {
-            TimerFlag = 0;                                  // Wis de meetvlag
+            TimerFlag = 0;                              // Wis de meetvlag
 
-            res = read_adc();
+            // Meet de temperatuur
+            ADCresultaat = ADC_read();
+            TEMPresultaat = MINTEMP + (((MAXTEMP - MINTEMP) / (MAXRES - MINRES)) * ((float)ADCresultaat - MINRES));
 
-            float OUT = MINTEMP + (((MAXTEMP - MINTEMP) / (MAXRES - MINRES)) * ((float)res - MINRES));
-
-            char buffer[20];
-
-            ucg_SetFontMode(&ucg, UCG_FONT_MODE_SOLID);
+            // Toon de ADC-waarde
             ucg_SetColor(&ucg, 0, 255, 255, 255);       // Tekstkleur wit
-            ucg_SetColor(&ucg, 1, 0, 0, 0);             // Achtergrondkleur zwart
+            sprintf(buffer, "%u", ADCresultaat);
+            ucg_DrawString(&ucg, 50, 50, 0, buffer);
 
-            sprintf(buffer, "%u", res);            
-            ucg_DrawString(&ucg, 50, 50, 0, buffer);     // Toon ADC-waarde
-
-            int temp10 = (int)(OUT * 10.0f + 0.5f);
-            sprintf(buffer, "%d,%01d C", temp10 / 10, temp10 % 10);
-            ucg_DrawString(&ucg, 50, 75, 0, buffer);     // Toon temperatuur
+            // Toon de temperatuur
+            sprintf(buffer, "%.1f C", TEMPresultaat);
+            ucg_DrawString(&ucg, 50, 75, 0, buffer);
 
             // Ventilatorregeling met hysterese
-            if (OUT >= FAN_ON_TEMP)
+            if (TEMPresultaat >= FAN_ON_TEMP && !fan_on)
             {
-                TCD0.CCBBUF = PWM_MAX;                 // Ventilator AAN bij 30 graden
-                ucg_SetColor(&ucg, 0, 0, 255, 0);    
+                fan_on = 1;                             // Ventilatorstatus AAN
+                TCD0.CCBBUF = PWM_MAX;                  // Schakel PWM naar 50%
+
+                ucg_SetColor(&ucg, 0, 0, 255, 0);       // Tekstkleur groen
                 ucg_DrawString(&ucg, 50, 100, 0, "ON ");
             }
-            else if (OUT <= FAN_OFF_TEMP)
+            else if (TEMPresultaat <= FAN_OFF_TEMP && fan_on)
             {
-                TCD0.CCBBUF = 0;                       // Ventilator UIT bij 25 graden
-                ucg_SetColor(&ucg, 0, 255, 0, 0);      
+                fan_on = 0;                             // Ventilatorstatus UIT
+                TCD0.CCBBUF = 0;                        // Schakel PWM uit
+
+                ucg_SetColor(&ucg, 0, 255, 0, 0);       // Tekstkleur rood
                 ucg_DrawString(&ucg, 50, 100, 0, "OFF");
             }
         }
     }
-}
-
-
-// Interrupt Service Routine voor timer TCE0
-ISR(TCE0_OVF_vect)
-{
-    TimerFlag = 1;                                      // Geef aan dat een ADC-meting nodig is
 }
