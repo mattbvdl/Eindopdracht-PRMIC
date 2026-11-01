@@ -1,6 +1,6 @@
 <mxfile host="Electron">
   <diagram name="Page-1" id="JXu1LQwxHURQ9DtWm0CN">
-    <mxGraphModel dx="982" dy="679" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="680" dy="470" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -30,7 +30,7 @@
         <mxCell id="chZW-HWLFBpnBnJvvksl-43" edge="1" parent="1" source="chZW-HWLFBpnBnJvvksl-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="chZW-HWLFBpnBnJvvksl-9" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="chZW-HWLFBpnBnJvvksl-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="Graphical header setup" vertex="1">
+        <mxCell id="chZW-HWLFBpnBnJvvksl-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="Graphical headers setup" vertex="1">
           <mxGeometry height="40" width="120" x="280" y="360" as="geometry" />
         </mxCell>
         <mxCell id="chZW-HWLFBpnBnJvvksl-45" edge="1" parent="1" source="chZW-HWLFBpnBnJvvksl-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="chZW-HWLFBpnBnJvvksl-3" value="">
@@ -42,7 +42,7 @@
         <mxCell id="chZW-HWLFBpnBnJvvksl-42" edge="1" parent="1" source="chZW-HWLFBpnBnJvvksl-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="chZW-HWLFBpnBnJvvksl-10" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="chZW-HWLFBpnBnJvvksl-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="Graphical header setup" vertex="1">
+        <mxCell id="chZW-HWLFBpnBnJvvksl-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="Fanstatus off by init" vertex="1">
           <mxGeometry height="40" width="120" x="280" y="440" as="geometry" />
         </mxCell>
         <mxCell id="chZW-HWLFBpnBnJvvksl-41" edge="1" parent="1" source="chZW-HWLFBpnBnJvvksl-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="chZW-HWLFBpnBnJvvksl-5" value="">
