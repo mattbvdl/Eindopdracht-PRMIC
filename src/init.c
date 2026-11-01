@@ -53,7 +53,6 @@ void pwm_init(void)
 {
     PORTD.OUTCLR = PIN1_bm;                             // Zet D1 (PD1) laag
     PORTD.DIRSET = PIN1_bm;                             // Stel D1 in als uitgang
-
     TCD0.CTRLB = TC0_CCBEN_bm |TC_WGMODE_SINGLESLOPE_gc;// Activeer PWM op PD1
     TCD0.PER = 31999;                                   // PWM-frequentie van 1 kHz
     TCD0.CCB = 0;                                       // Begin met 0% dutycycle
