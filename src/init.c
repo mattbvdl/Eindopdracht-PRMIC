@@ -32,7 +32,10 @@ void ADC_init(void)
 
 /*
  * Bron: PRMIC, week 4, les 2, dia 11.
- * Aangepast voor een overflow-interrupt iedere 16 ms.
+ * Timer telt van 0 t/m PER, dus PER + 1 kloktikken.
+ * Formule: PER = (F_CPU * tijd / prescaler) - 1
+ * Berekening: (32000000 * 0.016 / 8) - 1 = 63999
+ * Resultaat: iedere 16 ms een timer-overflow.
  */
 void timer_init(void)
 {
@@ -48,6 +51,8 @@ void timer_init(void)
  * Bron: Wim Dolman, De taal C en de Xmega,
  * hoofdstuk 22, code 22.3 en 22.4, p. 391-392.
  * Aangepast voor PWM op PD1 bij 1 kHz.
+ * Formule: PER = (F_CPU / (prescaler * frequentie)) - 1
+ * Berekening: (32000000 / (1 * 1000)) - 1 = 31999
  */
 void pwm_init(void)
 {

@@ -19,7 +19,10 @@
 
 #define FAN_ON_TEMP 30.0f                               // Ventilator AAN vanaf 30 graden
 #define FAN_OFF_TEMP 25.0f                              // Ventilator UIT bij 25 graden
-#define PWM_DUTY 16000                                  // PWM-dutycycle 50%
+#define PWM_DUTY 16000                                  // PWM-Dutycycle: (16000 / 32000) * 100% = 50%
+
+#define ON 1 
+#define OFF 0
 
 #include <stdio.h>
 #include <avr/io.h>
@@ -29,7 +32,7 @@
 #include "ucglib_xmega.h"
 #include "init.h"
 
-// Globale variabele 
+// Globale variabelen
 ucg_t ucg;                                              // Grafisch LCD globaal declareren.
 volatile uint8_t TimerFlag = 0;                         // flag variabele voor ISR
 
@@ -39,7 +42,7 @@ volatile uint8_t TimerFlag = 0;                         // flag variabele voor I
  */
 ISR(TCE0_OVF_vect)
 {
-    TimerFlag = 1;                                      // timer flag voor gebruik in main
+    TimerFlag = 1;
 }
 
 
@@ -62,12 +65,13 @@ uint16_t ADC_read(void)
 // Toon de ventilatorstatus op het LCD
 void fanstatus(uint8_t status)
 {
-    if (status == 1)
+    if (status == ON)
     {
         ucg_SetColor(&ucg, 0, 0, 255, 0);               // Groen
         ucg_DrawString(&ucg, 50, 125, 0, "ON ");
     }
-    else
+
+    else if(status == OFF)
     {
         ucg_SetColor(&ucg, 0, 255, 0, 0);               // Rood
         ucg_DrawString(&ucg, 50, 125, 0, "OFF");
@@ -79,9 +83,9 @@ int main(void)
 {
     // Variabelen
     char buffer[8];                                     // ADC 4 tekens % temp = max 7 tekens + \0 teken
-    uint16_t ADCresultaat;                              // Gemeten ADC-waarde
-    float TEMPresultaat;                                // Berekende temperatuur
-    uint8_t fan_on = 0;                                 // Ventilator default is uit
+    uint16_t ADCresultaat;                              
+    float TEMPresultaat;                                // float want resultaat heeft een kommagetal
+    uint8_t fan = OFF;                                  
 
     // Initialiseer functies (zie init.c)
     init_clock();
@@ -92,13 +96,13 @@ int main(void)
 
     // Grafische LCD setup
     ucg_ClearScreen(&ucg);                              // Screen reset bij opstarten
-    ucg_SetRotate180(&ucg);                             // Orientatie
+    ucg_SetRotate180(&ucg);                             
     ucg_SetFontMode(&ucg, UCG_FONT_MODE_SOLID);
-    ucg_SetFont(&ucg, ucg_font_8x13_mr);                // font gebruikt uit voorbeeld
-    ucg_SetColor(&ucg, 0, 255, 255, 255);               // Tekstkleur wit
-    ucg_DrawString(&ucg, 0, 20, 0, "  Temp -> Fan   "); // stukje header text
+    ucg_SetFont(&ucg, ucg_font_8x13_mr);                
+    ucg_SetColor(&ucg, 0, 255, 255, 255);               
+    ucg_DrawString(&ucg, 0, 20, 0, "  Temp -> Fan   "); 
     ucg_DrawLine(&ucg, 0, 50, 128, 50);
-    ucg_SetColor(&ucg, 0, 0, 0, 255);                   // Tekstkleur blauw
+    ucg_SetColor(&ucg, 0, 0, 0, 255);                   
     ucg_DrawString(&ucg, 0, 40, 0, "   Controller   ");
 
     // Status headers 
@@ -108,48 +112,54 @@ int main(void)
     ucg_DrawString(&ucg, 0, 125, 0, "FAN :");
 
     // Toon de beginstatus van de ventilator
-    ucg_SetColor(&ucg, 0, 255, 0, 0);
-    fanstatus(0);
+    fanstatus(OFF);
 
-    sei();                                              // Schakel globale interrupts in
+    sei();                                              // Schakel globale interrupts in voor de timer
 
     while (1)
     {
-        if (TimerFlag)                                  // Controleer of een nieuwe meting nodig is
+        if (TimerFlag)                                  // Check of interrupt flag 1 is.
         {
-            TimerFlag = 0;                              // Wis de meetvlag
+            TimerFlag = 0;                              // reset de flag
 
-            // Meet de temperatuur
-            ADCresultaat = ADC_read();
-
+            
             /*
             * Bron: PRMIC, huiswerk week 6, opdracht 1.
             * Aangepast voor temperatuurkalibratie van de NTC.
             */
-            TEMPresultaat = MINTEMP + (((MAXTEMP - MINTEMP) / (MAXRES - MINRES)) * ((float)ADCresultaat - MINRES));
+            // Meet adc waarde en bereken de temperatuur'
+            ADCresultaat = ADC_read();
+            TEMPresultaat = MINTEMP + (((MAXTEMP - MINTEMP) / (MAXRES - MINRES)) * ((float)ADCresultaat - MINRES)); // Zet ADC-waarde om naar float voor kommagetallen en negatieve tussenresultaten
 
-            // Toon de ADC-waarde
-            ucg_SetColor(&ucg, 0, 255, 255, 255);       // Tekstkleur wit
+            /*
+            * Bron: PRMIC, sprintf en LCD scherm, dia 1.
+            * Omzetten van meetwaarden naar tekst en weergeven op het LCD.
+            */
+            ucg_SetColor(&ucg, 0, 255, 255, 255);
+            // Print ADC resultaat
             sprintf(buffer, "%u", ADCresultaat);
             ucg_DrawString(&ucg, 50, 75, 0, buffer);
-
-            // Toon de temperatuur
+            // Print Temperatuur resultaat
             sprintf(buffer, "%.1f C", TEMPresultaat);
             ucg_DrawString(&ucg, 50, 100, 0, buffer);
 
+            /*
+            * Bron: PRMIC, week 3, les 1, dia 3-4.
+            * Eigen toepassing van hysterese voor de ventilatorregeling.
+            */
             // Ventilatorregeling met hysterese
-            if (TEMPresultaat >= FAN_ON_TEMP && !fan_on)
+            if (TEMPresultaat >= FAN_ON_TEMP && fan != ON)
             {
-                fan_on = 1;                             // Ventilatorstatus AAN
+                fan = ON;                             // Ventilatorstatus AAN
                 TCD0.CCBBUF = PWM_DUTY;                 // Schakel PWM naar 50%
-                fanstatus(1);
+                fanstatus(fan);
 
             }
-            else if (TEMPresultaat <= FAN_OFF_TEMP && fan_on)
+            else if (TEMPresultaat <= FAN_OFF_TEMP && fan == ON)
             {
-                fan_on = 0;                             // Ventilatorstatus UIT
+                fan = OFF;                             // Ventilatorstatus UIT
                 TCD0.CCBBUF = 0;                        // Schakel PWM uit
-                fanstatus(0);
+                fanstatus(fan);
             }
         }
     }
